@@ -1,4 +1,5 @@
 const _ = require("lodash");
+const Web3 = require("web3");
 const XDC3 = require("xdc3");
 const argv = require("yargs").argv;
 const fs = require("fs");
@@ -7,12 +8,16 @@ const solc = require("solc");
 const ipfsConfig = require("../config/ipfs-config").getConfig("xinfin"); // to be replaced by process.env.IPFS_CONFIG
 const ipfs = require("ipfs-http-client");
 const ipfsClient = new ipfs(ipfsConfig);
+const contractAbi = require("../config/contractAbi").ABI;
+
+const Cryptr = require("cryptr");
 
 let network = "http://rpc.apothem.network";
 if (!_.isEmpty(argv["httpProvider"])) {
   network = argv["httpProvider"];
 }
 const xdc3 = new XDC3(new XDC3.providers.HttpProvider(network));
+const web3 = new Web3(new Web3.providers.HttpProvider(network));
 
 exports.generateContract = (req, res) => {
   try {
@@ -37,7 +42,7 @@ exports.generateContract = (req, res) => {
       return res.status(400).json({ status: false, error: "bad" });
     }
     let contractTemplate = fs.readFileSync(
-      path.join(__dirname, "../contracts/Invoice_template.sol")
+      path.join(__dirname, "../contracts/Invoice_Template_Beta.sol")
     );
     contractTemplate = contractTemplate.toString();
     contractTemplate = contractTemplate.replace("_ipfsHash_", ipfsHash);
@@ -109,12 +114,13 @@ exports.deployContract = async (req, res) => {
     ) {
       return res.status(400).json({ status: false, error: "bad" });
     }
-
     let contractTemplate = fs.readFileSync(
-      path.join(__dirname, "../contracts/Invoice_template.sol")
+      path.join(__dirname, "../contracts/Invoice_Template_Beta.sol")
     );
+    const cryptr = new Cryptr(privKey);
+    const encryptedString = cryptr.encrypt(ipfsHash);
     contractTemplate = contractTemplate.toString();
-    contractTemplate = contractTemplate.replace("_ipfsHash_", ipfsHash);
+    contractTemplate = contractTemplate.replace("_ipfsHash_", encryptedString);
     contractTemplate = contractTemplate.replace(
       "_instrumentType_",
       instrumentType
@@ -127,7 +133,6 @@ exports.deployContract = async (req, res) => {
     contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
     contractTemplate = contractTemplate.replace("_name_", name);
     contractTemplate = contractTemplate.replace("_country_", country);
-
     var solcInput = {
       language: "Solidity",
       sources: {
@@ -178,6 +183,37 @@ exports.deployContract = async (req, res) => {
     console.log(e);
     return res.status(500).json({ status: false, error: "internal error" });
   }
+};
+
+exports.getDocHash = async (req, res) => {
+  console.log("called getDocHash");
+  if (
+    _.isEmpty(req.body) ||
+    _.isEmpty(req.body.contractAddr) ||
+    _.isEmpty(req.body.privKey)
+  ) {
+    console.error("missing parameters at service.getDocHash");
+    return res.json({ status: false, error: "missing parameters" });
+  }
+  const privKey = req.body.privKey;
+  const contractInst = new web3.eth.Contract(
+    contractAbi,
+    "0x" + req.body.contractAddr.slice(3)
+  );
+  contractInst.methods
+    .getDocHash()
+    .call()
+    .then(resp => {
+      console.log(resp);
+      const cryptr = new Cryptr(privKey);
+      const decryptedString = cryptr.decrypt(resp);
+      console.log("decrypted string: ", decryptedString);
+      return res.json({ status: true, ipfsHash: decryptedString });
+    })
+    .catch(e => {
+      console.log("error at service.getDocHash: ", e);
+      return res.json({ status: false, error: "internal error" });
+    });
 };
 
 async function deploy(abi, bin, privKey, callback) {
