@@ -66,6 +66,7 @@ exports.generateContract = (req, res) => {
 };
 
 exports.uploadDoc = async (req, res) => {
+  console.log("called upload doc");
   if (_.isEmpty(req.body) || _.isEmpty(req.body.data)) {
     res.status(400).json({ status: false, error: "bad request" });
     return;
