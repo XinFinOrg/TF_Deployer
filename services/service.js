@@ -113,7 +113,7 @@ exports.deployContract = async (req, res) => {
       _.isEmpty(name) ||
       _.isEmpty(country)
     ) {
-      return res.status(400).json({ status: false, error: "bad" });
+      return res.status(400).json({ status: false, error: "bad request" });
     }
     let contractTemplate = fs.readFileSync(
       path.join(__dirname, "../contracts/Invoice_Template_Beta.sol")
