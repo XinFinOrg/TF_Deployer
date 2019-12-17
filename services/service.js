@@ -101,6 +101,8 @@ exports.generateContract = (req, res) => {
     return res.json({ status: true, error: null, contract: contractTemplate });
   } catch (e) {
     console.log(e);
+    logger.error("error:")
+    logger.error(e.toString());
     return res.status(500).json({ status: false, error: "internal error" });
   }
 };
@@ -130,7 +132,7 @@ exports.uploadDoc = async (req, res) => {
     logger.error("error");
     logger.error(e.toString());
     console.log("errror ", e);
-    return res.json({ status: false, error: "internal error" });
+    return res.status(500).json({ status: false, error: "internal error" });
   }
 };
 
@@ -293,7 +295,7 @@ exports.getDocHash = async (req, res) => {
       logger.error("error at service.getDocHash");
       logger.error(e.toString());
       console.log("error at service.getDocHash: ", e);
-      return res.json({ status: false, error: "internal error" });
+      return res.status(500).json({ status: false, error: "internal error" });
     });
 };
 
