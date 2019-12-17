@@ -12,12 +12,13 @@ contract DocContract {
     string public amount = "_amount_";
     string public currencySupported = "_currencySupported_";
     string public maturityDate = "_maturityDate_";
-    string public name = "_name_";
+    string public docRef = "_docRef_";
     string public country = "_country_";
+    string public name = "_name_";
   
 
-    function getData() public view returns(string memory,string memory,string memory,string memory,string memory,string memory) {
-        return (instrumentType,amount,currencySupported,maturityDate,name,country);
+    function getData() public view returns(string memory,string memory,string memory,string memory,string memory,string memory,string memory) {
+        return (instrumentType,amount,currencySupported,maturityDate,docRef,country, name);
     }
 
     function getDocHash() public view returns (string memory) {

@@ -5,12 +5,28 @@ const argv = require("yargs").argv;
 const fs = require("fs");
 const path = require("path");
 const solc = require("solc");
-const ipfsConfig = require("../config/ipfs-config").getConfig("xinfin"); // to be replaced by process.env.IPFS_CONFIG
 const ipfs = require("ipfs-http-client");
-const ipfsClient = new ipfs(ipfsConfig);
-const contractAbi = require("../config/contractAbi").ABI;
-
+const contractAbi = require("../config/contractAbi");
+const { logger } = require("./logger");
 const Cryptr = require("cryptr");
+
+let ipfsNetwork = "xinfin";
+
+if (!_.isEmpty(argv) && !_.isEmpty(argv["ipfsNetwork"])) {
+  if (argv["ipfsNetwork"] === "local") {
+    logger.info("[*] changed IPFS network to local");
+    ipfsNetwork = "local";
+  }
+}
+
+const ipfsConfig = require("../config/ipfs-config").getConfig(ipfsNetwork); // to be replaced by process.env.IPFS_CONFIG
+const ipfsClient = new ipfs(ipfsConfig);
+
+// contract type values
+const contractTypes = {
+  commonInstrument: "Common_Template_Beta.sol",
+  brokerInstrument: "Broker_Template_Beta.sol"
+};
 
 let network = "http://rpc.apothem.network";
 if (!_.isEmpty(argv["httpProvider"])) {
@@ -21,31 +37,55 @@ const web3 = new Web3(new Web3.providers.HttpProvider(network));
 
 exports.generateContract = (req, res) => {
   try {
-    console.log("called generateContract");
+    logger.info("called generateContract");
     // generate contract code.
     const ipfsHash = req.body.ipfsHash;
     const instrumentType = req.body.instrumentType;
     const amount = req.body.amount;
     const currencySupported = req.body.currencySupported;
     const maturityDate = req.body.maturityDate;
-    const name = req.body.name;
+    const docRef = req.body.docRef;
     const country = req.body.country;
+    const contractType = req.body.contractType;
+    const privKey = req.body.privKey;
+    const validContractTypes = Object.keys(contractTypes);
+
     if (
       _.isEmpty(ipfsHash) ||
       _.isEmpty(instrumentType) ||
       _.isEmpty(amount) ||
       _.isEmpty(currencySupported) ||
       _.isEmpty(maturityDate) ||
-      _.isEmpty(name) ||
-      _.isEmpty(country)
+      _.isEmpty(docRef) ||
+      _.isEmpty(country) ||
+      _.isEmpty(contractType) ||
+      _.isEmpty(privKey)
     ) {
-      return res.status(400).json({ status: false, error: "bad" });
+      return res.status(400).json({ status: false, error: "bad request" });
     }
+
+    if (!validContractTypes.includes(contractType)) {
+      return res
+        .status(400)
+        .json({ status: false, error: "bad request, invalid contract type" });
+    }
+
     let contractTemplate = fs.readFileSync(
-      path.join(__dirname, "../contracts/Invoice_Template_Beta.sol")
+      path.join(__dirname, `../contracts/${contractTypes[contractType]}`)
     );
     contractTemplate = contractTemplate.toString();
-    contractTemplate = contractTemplate.replace("_ipfsHash_", ipfsHash);
+    if (contractType == "brokerInstrument") {
+      const name = req.body.name;
+      if (_.isEmpty(name)) {
+        return res
+          .json(400)
+          .json({ status: false, error: "missing paramter: name" });
+      }
+      contractTemplate = contractTemplate.replace("_name_", name);
+    }
+    const cryptr = new Cryptr(privKey);
+    const encryptedString = cryptr.encrypt(ipfsHash);
+    contractTemplate = contractTemplate.replace("_ipfsHash_", encryptedString);
     contractTemplate = contractTemplate.replace(
       "_instrumentType_",
       instrumentType
@@ -56,7 +96,7 @@ exports.generateContract = (req, res) => {
       currencySupported
     );
     contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
-    contractTemplate = contractTemplate.replace("_name_", name);
+    contractTemplate = contractTemplate.replace("_docRef_", docRef);
     contractTemplate = contractTemplate.replace("_country_", country);
     return res.json({ status: true, error: null, contract: contractTemplate });
   } catch (e) {
@@ -66,7 +106,7 @@ exports.generateContract = (req, res) => {
 };
 
 exports.uploadDoc = async (req, res) => {
-  console.log("called upload doc");
+  logger.info("called upload doc");
   if (_.isEmpty(req.body) || _.isEmpty(req.body.data)) {
     res.status(400).json({ status: false, error: "bad request" });
     return;
@@ -80,47 +120,69 @@ exports.uploadDoc = async (req, res) => {
     }
     ipfsClient.add(fileBuffer, async (err, ipfsHash) => {
       if (err !== null) {
-        console.log("error while uploading to IPFS");
-        csonole.log(err);
+        logger.error("error while uploading to IPFS");
+        logger.error(err.toString());
         return res.json({ error: "internal error", status: false });
       }
       res.json({ status: true, hash: ipfsHash[0].hash });
     });
   } catch (e) {
-    console.log("exception ", e);
+    logger.error("error");
+    logger.error(e.toString());
+    console.log("errror ", e);
     return res.json({ status: false, error: "internal error" });
   }
 };
 
 exports.deployContract = async (req, res) => {
   try {
-    console.log("called deployContract");
+    logger.info("called deployContract");
     // generate contract code.
     const ipfsHash = req.body.ipfsHash;
     const instrumentType = req.body.instrumentType;
     const amount = req.body.amount;
     const currencySupported = req.body.currencySupported;
     const maturityDate = req.body.maturityDate;
-    const name = req.body.name;
+    const docRef = req.body.docRef;
     const country = req.body.country;
     const privKey = req.body.privKey;
+    const contractType = req.body.contractType;
+
     if (
       _.isEmpty(ipfsHash) ||
       _.isEmpty(instrumentType) ||
       _.isEmpty(amount) ||
       _.isEmpty(currencySupported) ||
       _.isEmpty(maturityDate) ||
-      _.isEmpty(name) ||
-      _.isEmpty(country)
+      _.isEmpty(docRef) ||
+      _.isEmpty(country) ||
+      _.isEmpty(contractType)
     ) {
       return res.status(400).json({ status: false, error: "bad request" });
     }
+
+    const validContractTypes = Object.keys(contractTypes);
+    if (!validContractTypes.includes(contractType)) {
+      return res
+        .status(400)
+        .json({ status: false, error: "bad request, invalid contract type" });
+    }
+
     let contractTemplate = fs.readFileSync(
-      path.join(__dirname, "../contracts/Invoice_Template_Beta.sol")
+      path.join(__dirname, `../contracts/${contractTypes[contractType]}`)
     );
+    contractTemplate = contractTemplate.toString();
+    if (contractType == "brokerInstrument") {
+      const name = req.body.name;
+      if (_.isEmpty(name)) {
+        return res
+          .status(400)
+          .json({ status: false, error: "missing paramter: name" });
+      }
+      contractTemplate = contractTemplate.replace("_name_", name);
+    }
     const cryptr = new Cryptr(privKey);
     const encryptedString = cryptr.encrypt(ipfsHash);
-    contractTemplate = contractTemplate.toString();
     contractTemplate = contractTemplate.replace("_ipfsHash_", encryptedString);
     contractTemplate = contractTemplate.replace(
       "_instrumentType_",
@@ -132,7 +194,7 @@ exports.deployContract = async (req, res) => {
       currencySupported
     );
     contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
-    contractTemplate = contractTemplate.replace("_name_", name);
+    contractTemplate = contractTemplate.replace("_docRef_", docRef);
     contractTemplate = contractTemplate.replace("_country_", country);
     var solcInput = {
       language: "Solidity",
@@ -161,6 +223,7 @@ exports.deployContract = async (req, res) => {
         }
       }
     };
+    logger.info("contract generated");
     console.log(contractTemplate);
     solcInput = JSON.stringify(solcInput);
     var contractObject = solc.compile(solcInput);
@@ -181,6 +244,8 @@ exports.deployContract = async (req, res) => {
       }
     );
   } catch (e) {
+    logger.error("internal error at service.deploy");
+    logger.error(e.toString());
     console.log(e);
     return res.status(500).json({ status: false, error: "internal error" });
   }
@@ -191,20 +256,33 @@ exports.getDocHash = async (req, res) => {
   if (
     _.isEmpty(req.body) ||
     _.isEmpty(req.body.contractAddr) ||
-    _.isEmpty(req.body.privKey)
+    _.isEmpty(req.body.privKey) ||
+    _.isEmpty(req.body.contractType)
   ) {
+    logger.error("missing parameters at service.getDochash");
     console.error("missing parameters at service.getDocHash");
     return res.json({ status: false, error: "missing parameters" });
   }
   const privKey = req.body.privKey;
+  const contractType = req.body.contractType;
+
+  const validContractTypes = Object.keys(contractTypes);
+  if (!validContractTypes.includes(contractType)) {
+    logger.error("unknown contract type");
+    return res
+      .status(400)
+      .json({ error: "bad request; invalid contract type", status: false });
+  }
   const contractInst = new web3.eth.Contract(
-    contractAbi,
+    contractAbi[contractType].ABI,
     "0x" + req.body.contractAddr.slice(3)
   );
   contractInst.methods
     .getDocHash()
     .call()
     .then(resp => {
+      logger.info("got the doc hash");
+      logger.info(resp.toString());
       console.log(resp);
       const cryptr = new Cryptr(privKey);
       const decryptedString = cryptr.decrypt(resp);
@@ -212,6 +290,8 @@ exports.getDocHash = async (req, res) => {
       return res.json({ status: true, ipfsHash: decryptedString });
     })
     .catch(e => {
+      logger.error("error at service.getDocHash");
+      logger.error(e.toString());
       console.log("error at service.getDocHash: ", e);
       return res.json({ status: false, error: "internal error" });
     });
@@ -219,6 +299,7 @@ exports.getDocHash = async (req, res) => {
 
 async function deploy(abi, bin, privKey, callback) {
   try {
+    logger.info("called service.deploy");
     const abiJSON = JSON.parse(abi.trim());
     let contract = new xdc3.eth.Contract(abiJSON);
     let deploy = contract.deploy({ data: "0x" + bin }).encodeABI();
@@ -241,13 +322,18 @@ async function deploy(abi, bin, privKey, callback) {
     xdc3.eth
       .sendSignedTransaction(signedTransaction.rawTransaction)
       .on("receipt", receipt => {
+        logger.info("receipt received");
+        logger.info(receipt.toString());
         if (receipt.status === true) {
+          logger.info("receipt status true");
+          logger.info(`contract address ${receipt.contractAddress}`);
           console.log(receipt.contractAddress);
           callback(true, null, receipt);
         } else {
-          console.log("error");
-          console.log("contract execution failed");
-          console.log("receipt: ", receipt);
+          logger.error(
+            "error: contract execution failed, receipt status false"
+          );
+          logger.error(`receipt: ${receipt.toString()}`);
           callback(false, "contract execution failed", null);
         }
       })
@@ -258,6 +344,8 @@ async function deploy(abi, bin, privKey, callback) {
         callback(false, "contract execution failed", null);
       });
   } catch (e) {
+    logger.error("error: exception at service.deploy");
+    logger.error(e.toString());
     console.log("error");
     console.log("error at deploy, ", e);
     callback(false, "exception", null);

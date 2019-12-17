@@ -2,11 +2,14 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
+const morgan = require("morgan");
+const {logger} = require("./services/logger");
 
 const app = express();
 
+app.use(morgan("dev", { stream: logger.stream }));
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true, limit: "5MB" }));
+app.use(bodyParser.urlencoded({ extended: true, limit: "10MB" }));
 
 app.use(cors({
   'allowedHeaders': ['sessionId', 'Content-Type'],
@@ -19,5 +22,5 @@ app.use(cors({
 require("./routes/route")(app);
 
 app.listen(3110, () => {
-  console.log("[*] server started");
+  logger.info("[*] server started");
 });
