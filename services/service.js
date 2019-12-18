@@ -101,7 +101,7 @@ exports.generateContract = (req, res) => {
     return res.json({ status: true, error: null, contract: contractTemplate });
   } catch (e) {
     console.log(e);
-    logger.error("error:")
+    logger.error("error:");
     logger.error(e.toString());
     return res.status(500).json({ status: false, error: "internal error" });
   }
@@ -299,6 +299,59 @@ exports.getDocHash = async (req, res) => {
     });
 };
 
+exports.makePayment = async (req, res) => {
+  logger.info("called makePayment");
+  const privKey = req.body.privKey;
+  const abi = req.body.abi;
+  let addr = req.body.addr;
+  const merchantId = req.body.merchantId;
+  const purpose = req.body.purpose;
+  const chainId = req.body.chainId;
+  const value = req.body.value;
+
+  if (
+    _.isEmpty(privKey) ||
+    _.isEmpty(abi) ||
+    _.isEmpty(addr) ||
+    _.isEmpty(merchantId) ||
+    _.isEmpty(purpose) ||
+    _.isEmpty(chainId) ||
+    isNaN(value)
+  ) {
+    logger.error("bad request, missing parameters");
+    return res
+      .status(400)
+      .json({ status: false, error: "bad request; missing parameters" });
+  }
+
+  try {
+    addr = addr.toString().startsWith("xdc") ? "0x" + addr.slice(3) : addr;
+    const contractInst = new web3.eth.Contract(abi, addr);
+    const encodedData = contractInst.methods
+      .makePayment(merchantId, purpose)
+      .encodeABI();
+
+    const signed = await signTx(encodedData, addr, privKey, chainId, value);
+    logger.info("after signed");
+    xdc3.eth
+      .sendSignedTransaction(signed.rawTransaction)
+      .then(receipt => {
+        logger.info(`receipt:${JSON.stringify(receipt)}`);
+        if (receipt.status == true) {
+          logger.verbose("receipt received at service.makePayment");
+          return res.status(200).json({ status: true, receipt: receipt });
+        }
+      })
+      .catch(e => {
+        logger.error(`error while executing the transaction at service.makePayment: ${e.toString()}`);
+        return res.status(500).json({ status: false, error: "internal error" });
+      });
+  } catch (e) {
+    logger.error(`exception at service.makePayment: ${e.toString()}`);
+    return res.status(500).json({ error: "internal error", status: false });
+  }
+};
+
 async function deploy(abi, bin, privKey, callback) {
   try {
     logger.info("called service.deploy");
@@ -352,4 +405,23 @@ async function deploy(abi, bin, privKey, callback) {
     console.log("error at deploy, ", e);
     callback(false, "exception", null);
   }
+}
+
+async function signTx(encodedData, toAddr, privKey, chainId, value) {
+  console.log(encodedData, toAddr, privKey, chainId, value);
+  // const estimateGas = await web3.eth.estimateGas({ data: encodedData }); //  this throws an error 'tx will always fail or gas will exceed allowance'
+  const account = web3.eth.accounts.privateKeyToAccount(privKey);
+  console.log("Account: ", account);
+  const rawTx = {
+    to: toAddr,
+    from: account.address,
+    gas: 20000000,
+    gasPrice: await web3.eth.getGasPrice(),
+    nonce: await web3.eth.getTransactionCount(account.address),
+    data: encodedData,
+    chainId: chainId + "",
+    value: value
+  };
+  const signed = await web3.eth.accounts.signTransaction(rawTx, privKey);
+  return signed;
 }

@@ -5,4 +5,5 @@ module.exports = app => {
   app.post("/api/deployContract", service.deployContract);
   app.post("/api/uploadDoc", service.uploadDoc);
   app.post("/api/getDocHash",service.getDocHash);
+  app.post("/api/makePayment",service.makePayment);
 };
