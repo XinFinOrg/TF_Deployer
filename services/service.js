@@ -339,11 +339,22 @@ exports.makePayment = async (req, res) => {
         logger.info(`receipt:${JSON.stringify(receipt)}`);
         if (receipt.status == true) {
           logger.verbose("receipt received at service.makePayment");
-          return res.status(200).json({ status: true, receipt: receipt });
+          return res.status(500).json({ status: true, receipt: receipt });
+        } else {
+          logger.verbose("receipt received at service.makePayment");
+          return res
+            .status(500)
+            .json({
+              status: false,
+              receipt: receipt,
+              error: "receipt status false"
+            });
         }
       })
       .catch(e => {
-        logger.error(`error while executing the transaction at service.makePayment: ${e.toString()}`);
+        logger.error(
+          `error while executing the transaction at service.makePayment: ${e.toString()}`
+        );
         return res.status(500).json({ status: false, error: "internal error" });
       });
   } catch (e) {
