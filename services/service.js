@@ -9,6 +9,7 @@ const ipfs = require("ipfs-http-client");
 const contractAbi = require("../config/contractAbi");
 const { logger } = require("./logger");
 const Cryptr = require("cryptr");
+const config = require("../config/config");
 
 let ipfsNetwork = "xinfin";
 
@@ -28,12 +29,10 @@ const contractTypes = {
   brokerInstrument: "Broker_Template_Beta.sol"
 };
 
-let network = "http://rpc.apothem.network";
-if (!_.isEmpty(argv["httpProvider"])) {
-  network = argv["httpProvider"];
-}
-const xdc3 = new XDC3(new XDC3.providers.HttpProvider(network));
-const web3 = new Web3(new Web3.providers.HttpProvider(network));
+const networkRpc = config.networkRpc;
+const networkId = config.networkId;
+const xdc3 = new XDC3(new XDC3.providers.HttpProvider(networkRpc));
+const web3 = new Web3(new Web3.providers.HttpProvider(networkRpc));
 
 exports.generateContract = (req, res) => {
   try {
@@ -342,13 +341,11 @@ exports.makePayment = async (req, res) => {
           return res.status(500).json({ status: true, receipt: receipt });
         } else {
           logger.verbose("receipt received at service.makePayment");
-          return res
-            .status(500)
-            .json({
-              status: false,
-              receipt: receipt,
-              error: "receipt status false"
-            });
+          return res.status(500).json({
+            status: false,
+            receipt: receipt,
+            error: "receipt status false"
+          });
         }
       })
       .catch(e => {
@@ -379,7 +376,7 @@ async function deploy(abi, bin, privKey, callback) {
       gas: estimateGas,
       gasPrice: gasPrice,
       nonce: nonce,
-      chainId: 51
+      chainId: networkId
     };
     let signedTransaction = await xdc3.eth.accounts.signTransaction(
       rawTx,

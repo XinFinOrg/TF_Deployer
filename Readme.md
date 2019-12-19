@@ -3,7 +3,9 @@
 ### Setup
 
 `npm i`<br/>
-`node index.js` or `npm run start`
 
-*Note*: By defualt network is http://rpc.apothem.network, you can override it by using flag `--httpProvider=/--your-provider--/`
+You can select the network to deploy the contract on the start by running appropriate script.
+
+- Apothem - `node index.js` or `npm run start`
+- Mainnet - `npm run start-mainnet`
 
