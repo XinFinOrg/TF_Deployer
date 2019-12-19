@@ -9,7 +9,7 @@ const app = express();
 
 app.use(morgan("dev", { stream: logger.stream }));
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true, limit: "10MB" }));
+app.use(bodyParser.urlencoded({ extended: true, limit: "15MB" }));
 
 app.use(cors({
   'allowedHeaders': ['sessionId', 'Content-Type'],
