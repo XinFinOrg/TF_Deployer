@@ -10,6 +10,7 @@ const contractAbi = require("../config/contractAbi");
 const { logger } = require("./logger");
 const Cryptr = require("cryptr");
 const config = require("../config/config");
+const crypto = require("crypto");
 
 let ipfsNetwork = "xinfin";
 
@@ -46,7 +47,6 @@ exports.generateContract = (req, res) => {
     const docRef = req.body.docRef;
     const country = req.body.country;
     const contractType = req.body.contractType;
-    const privKey = req.body.privKey;
     const validContractTypes = Object.keys(contractTypes);
 
     if (
@@ -57,8 +57,7 @@ exports.generateContract = (req, res) => {
       _.isEmpty(maturityDate) ||
       _.isEmpty(docRef) ||
       _.isEmpty(country) ||
-      _.isEmpty(contractType) ||
-      _.isEmpty(privKey)
+      _.isEmpty(contractType)
     ) {
       return res.status(400).json({ status: false, error: "bad request" });
     }
@@ -82,7 +81,8 @@ exports.generateContract = (req, res) => {
       }
       contractTemplate = contractTemplate.replace("_name_", name);
     }
-    const cryptr = new Cryptr(privKey);
+    const passKey = genRandomKey();
+    const cryptr = new Cryptr(passKey);
     const encryptedString = cryptr.encrypt(ipfsHash);
     contractTemplate = contractTemplate.replace("_ipfsHash_", encryptedString);
     contractTemplate = contractTemplate.replace(
@@ -97,7 +97,7 @@ exports.generateContract = (req, res) => {
     contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
     contractTemplate = contractTemplate.replace("_docRef_", docRef);
     contractTemplate = contractTemplate.replace("_country_", country);
-    return res.json({ status: true, error: null, contract: contractTemplate });
+    return res.json({ status: true, error: null, contract: contractTemplate, passKey: passKey });
   } catch (e) {
     console.log(e);
     logger.error("error:");
@@ -148,6 +148,7 @@ exports.deployContract = async (req, res) => {
     const country = req.body.country;
     const privKey = req.body.privKey;
     const contractType = req.body.contractType;
+    const passKey = req.body.passKey;
 
     if (
       _.isEmpty(ipfsHash) ||
@@ -157,7 +158,8 @@ exports.deployContract = async (req, res) => {
       _.isEmpty(maturityDate) ||
       _.isEmpty(docRef) ||
       _.isEmpty(country) ||
-      _.isEmpty(contractType)
+      _.isEmpty(contractType) || 
+      _.isEmpty(passKey)
     ) {
       return res.status(400).json({ status: false, error: "bad request" });
     }
@@ -182,7 +184,7 @@ exports.deployContract = async (req, res) => {
       }
       contractTemplate = contractTemplate.replace("_name_", name);
     }
-    const cryptr = new Cryptr(privKey);
+    const cryptr = new Cryptr(passKey);
     const encryptedString = cryptr.encrypt(ipfsHash);
     contractTemplate = contractTemplate.replace("_ipfsHash_", encryptedString);
     contractTemplate = contractTemplate.replace(
@@ -236,11 +238,16 @@ exports.deployContract = async (req, res) => {
       JSON.stringify(abi),
       byteCode.toString(),
       privKey,
-      (deployed, error, receipt) => {
+      (deployed, error, receipt, deployerAddr) => {
         if (deployed !== true) {
           return res.json({ error: error, status: false, receipt: null });
         } else {
-          return res.json({ error: null, status: true, receipt: receipt });
+          return res.json({
+            error: null,
+            status: true,
+            receipt: receipt,
+            deployerAddr: deployerAddr
+          });
         }
       }
     );
@@ -257,14 +264,14 @@ exports.getDocHash = async (req, res) => {
   if (
     _.isEmpty(req.body) ||
     _.isEmpty(req.body.contractAddr) ||
-    _.isEmpty(req.body.privKey) ||
+    _.isEmpty(req.body.passKey) ||
     _.isEmpty(req.body.contractType)
   ) {
     logger.error("missing parameters at service.getDochash");
     console.error("missing parameters at service.getDocHash");
     return res.json({ status: false, error: "missing parameters" });
   }
-  const privKey = req.body.privKey;
+  const passKey = req.body.passKey;
   const contractType = req.body.contractType;
 
   const validContractTypes = Object.keys(contractTypes);
@@ -276,7 +283,7 @@ exports.getDocHash = async (req, res) => {
   }
   const contractInst = new web3.eth.Contract(
     contractAbi[contractType].ABI,
-    "0x" + req.body.contractAddr.slice(3)
+    "0x" + req.body.contractAddr.slice(3).toLowerCase()
   );
   contractInst.methods
     .getDocHash()
@@ -285,7 +292,7 @@ exports.getDocHash = async (req, res) => {
       logger.info("got the doc hash");
       logger.info(resp.toString());
       console.log(resp);
-      const cryptr = new Cryptr(privKey);
+      const cryptr = new Cryptr(passKey);
       const decryptedString = cryptr.decrypt(resp);
       console.log("decrypted string: ", decryptedString);
       return res.json({ status: true, ipfsHash: decryptedString });
@@ -391,7 +398,7 @@ async function deploy(abi, bin, privKey, callback) {
           logger.info("receipt status true");
           logger.info(`contract address ${receipt.contractAddress}`);
           console.log(receipt.contractAddress);
-          callback(true, null, receipt);
+          callback(true, null, receipt, account.address);
         } else {
           logger.error(
             "error: contract execution failed, receipt status false"
@@ -432,4 +439,8 @@ async function signTx(encodedData, toAddr, privKey, chainId, value) {
   };
   const signed = await web3.eth.accounts.signTransaction(rawTx, privKey);
   return signed;
+}
+
+function genRandomKey() {
+  return crypto.randomBytes(64).toString("hex");
 }

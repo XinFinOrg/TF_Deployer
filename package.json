@@ -7,6 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "nodemon index.js",
     "start-mainnet":"nodemon index.js --network=mainnet",
+    "start-ipfs-local":"nodemon index.js --ipfsNetwork=local",
     "dev": "pm2 start index.js --name TF_Deployer"
   },
   "author": "",
