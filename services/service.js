@@ -430,7 +430,7 @@ async function signTx(encodedData, toAddr, privKey, chainId, value) {
   const rawTx = {
     to: toAddr,
     from: account.address,
-    gas: 20000000,
+    gas: 2000000,
     gasPrice: await web3.eth.getGasPrice(),
     nonce: await web3.eth.getTransactionCount(account.address),
     data: encodedData,
