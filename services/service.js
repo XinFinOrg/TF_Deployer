@@ -135,6 +135,31 @@ exports.uploadDoc = async (req, res) => {
   }
 };
 
+exports.uploadMultiDoc = async (req, res) => {
+  logger.info("called upload multiple doc");
+  if (_.isEmpty(req.body) || _.isEmpty(req.body.data)) {
+    res.status(400).json({ status: false, error: "bad request" });
+    return;
+  }
+  try {
+    const fileBase64 = req.body.data;
+    const retHash = [];
+
+    for (let i=0;i<fileBase64.length;i++){
+      const currFileBuf = new Buffer.from(fileBase64[i],"base64");
+      const result = await ipfsClient.add(currFileBuf);
+      retHash.push(result[0].hash)
+    }
+
+    res.json({ status: true, hashes: retHash });
+  } catch (e) {
+    logger.error("error");
+    logger.error(e.toString());
+    console.log("errror ", e);
+    return res.status(500).json({ status: false, error: "internal error" });
+  }
+};
+
 exports.deployContract = async (req, res) => {
   try {
     logger.info("called deployContract");
