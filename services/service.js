@@ -97,7 +97,12 @@ exports.generateContract = (req, res) => {
     contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
     contractTemplate = contractTemplate.replace("_docRef_", docRef);
     contractTemplate = contractTemplate.replace("_country_", country);
-    return res.json({ status: true, error: null, contract: contractTemplate, passKey: passKey });
+    return res.json({
+      status: true,
+      error: null,
+      contract: contractTemplate,
+      passKey: passKey
+    });
   } catch (e) {
     console.log(e);
     logger.error("error:");
@@ -107,72 +112,80 @@ exports.generateContract = (req, res) => {
 };
 exports.generateMultiDocContract = (req, res) => {
   try {
-    logger.info("called generateContract");
-    // generate contract code.
-    const ipfsHash = req.body.ipfsHash;
-    const instrumentType = req.body.instrumentType;
-    const amount = req.body.amount;
-    const currencySupported = req.body.currencySupported;
-    const maturityDate = req.body.maturityDate;
-    const docRef = req.body.docRef;
-    const country = req.body.country;
-    const contractType = req.body.contractType;
-    const validContractTypes = Object.keys(contractTypes);
-
-    if (
-      _.isEmpty(ipfsHash) ||
-      _.isEmpty(instrumentType) ||
-      _.isEmpty(amount) ||
-      _.isEmpty(currencySupported) ||
-      _.isEmpty(maturityDate) ||
-      _.isEmpty(docRef) ||
-      _.isEmpty(country) ||
-      _.isEmpty(contractType)
-    ) {
-      return res.status(400).json({ status: false, error: "bad request" });
+    logger.info("called generateMultiDocContract");
+    const allDocs = req.body.allDocs;
+    const retDocs = [];
+    if (allDocs.length == 0) {
+      return res.json({ status: false, error: "bad request, missing docs" });
     }
+    allDocs.forEach(currDoc => {
+      const ipfsHash = currDoc.ipfsHash;
+      const instrumentType = currDoc.instrumentType;
+      const amount = currDoc.amount;
+      const currencySupported = currDoc.currencySupported;
+      const maturityDate = currDoc.maturityDate;
+      const docRef = currDoc.docRef;
+      const country = currDoc.country;
+      const contractType = currDoc.contractType;
+      const validContractTypes = Object.keys(contractTypes);
 
-    if (!validContractTypes.includes(contractType)) {
-      return res
-        .status(400)
-        .json({ status: false, error: "bad request, invalid contract type" });
-    }
-
-    let contractTemplate = fs.readFileSync(
-      path.join(__dirname, `../contracts/${contractTypes[contractType]}`)
-    );
-    contractTemplate = contractTemplate.toString();
-    if (contractType == "brokerInstrument") {
-      const name = req.body.name;
-      if (_.isEmpty(name)) {
-        return res
-          .json(400)
-          .json({ status: false, error: "missing paramter: name" });
+      if (
+        _.isEmpty(ipfsHash) ||
+        _.isEmpty(instrumentType) ||
+        _.isEmpty(amount) ||
+        _.isEmpty(currencySupported) ||
+        _.isEmpty(maturityDate) ||
+        _.isEmpty(docRef) ||
+        _.isEmpty(country) ||
+        _.isEmpty(contractType)
+      ) {
+        return res.status(400).json({ status: false, error: "bad request" });
       }
-      contractTemplate = contractTemplate.replace("_name_", name);
-    }
-    const passKey = genRandomKey();
-    const cryptr = new Cryptr(passKey);
-    for (let i=0;i<ipfsHash.length;i++){
-      const retEncrypt = [];
 
-      const encryptedString = cryptr.encrypt(ipfsHash[i]);
-      contractTemplate = contractTemplate.replace("_ipfsHash_", encryptedString);
-      retEncrypt.push(contractTemplate);
-    }
-    contractTemplate = contractTemplate.replace(
-      "_instrumentType_",
-      instrumentType
-    );
-    contractTemplate = contractTemplate.replace("_amount_", amount);
-    contractTemplate = contractTemplate.replace(
-      "_currencySupported_",
-      currencySupported
-    );
-    contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
-    contractTemplate = contractTemplate.replace("_docRef_", docRef);
-    contractTemplate = contractTemplate.replace("_country_", country);
-    return res.json({ status: true, error: null, contract: contractTemplate, passKey: passKey });
+      if (!validContractTypes.includes(contractType)) {
+        return res
+          .status(400)
+          .json({ status: false, error: "bad request, invalid contract type" });
+      }
+
+      let contractTemplate = fs.readFileSync(
+        path.join(__dirname, `../contracts/${contractTypes[contractType]}`)
+      );
+      contractTemplate = contractTemplate.toString();
+      if (contractType == "brokerInstrument") {
+        const name = currDoc.name;
+        if (_.isEmpty(name)) {
+          return res
+            .json(400)
+            .json({ status: false, error: "missing paramter: name" });
+        }
+        contractTemplate = contractTemplate.replace("_name_", name);
+      }
+      const passKey = genRandomKey();
+      const cryptr = new Cryptr(passKey);
+      const encryptedString = cryptr.encrypt(ipfsHash);
+      contractTemplate = contractTemplate.replace(
+        "_ipfsHash_",
+        encryptedString
+      );
+      contractTemplate = contractTemplate.replace(
+        "_instrumentType_",
+        instrumentType
+      );
+      contractTemplate = contractTemplate.replace("_amount_", amount);
+      contractTemplate = contractTemplate.replace(
+        "_currencySupported_",
+        currencySupported
+      );
+      contractTemplate = contractTemplate.replace(
+        "_maturityDate_",
+        maturityDate
+      );
+      contractTemplate = contractTemplate.replace("_docRef_", docRef);
+      contractTemplate = contractTemplate.replace("_country_", country);
+      retDocs.push({ contract: contractTemplate, passKey: passKey });
+    });
+    res.json({ status: true, contracts: retDocs });
   } catch (e) {
     console.log(e);
     logger.error("error:");
@@ -220,10 +233,10 @@ exports.uploadMultiDoc = async (req, res) => {
     const fileBase64 = req.body.data;
     const retHash = [];
 
-    for (let i=0;i<fileBase64.length;i++){
-      const currFileBuf = new Buffer.from(fileBase64[i],"base64");
+    for (let i = 0; i < fileBase64.length; i++) {
+      const currFileBuf = new Buffer.from(fileBase64[i], "base64");
       const result = await ipfsClient.add(currFileBuf);
-      retHash.push(result[0].hash)
+      retHash.push(result[0].hash);
     }
 
     res.json({ status: true, hashes: retHash });
@@ -250,6 +263,12 @@ exports.deployContract = async (req, res) => {
     const contractType = req.body.contractType;
     const passKey = req.body.passKey;
 
+    let nonceAdder = 0;
+    
+    if (!_.isNumber(req.body.nonceAdder)){
+      nonceAdder = parseInt(req.body.nonceAdder);
+    }
+
     if (
       _.isEmpty(ipfsHash) ||
       _.isEmpty(instrumentType) ||
@@ -258,7 +277,7 @@ exports.deployContract = async (req, res) => {
       _.isEmpty(maturityDate) ||
       _.isEmpty(docRef) ||
       _.isEmpty(country) ||
-      _.isEmpty(contractType) || 
+      _.isEmpty(contractType) ||
       _.isEmpty(passKey)
     ) {
       return res.status(400).json({ status: false, error: "bad request" });
@@ -338,6 +357,7 @@ exports.deployContract = async (req, res) => {
       JSON.stringify(abi),
       byteCode.toString(),
       privKey,
+      nonceAdder,
       (deployed, error, receipt, deployerAddr) => {
         if (deployed !== true) {
           return res.json({ error: error, status: false, receipt: null });
@@ -359,6 +379,137 @@ exports.deployContract = async (req, res) => {
   }
 };
 
+exports.deployMultiContract = async (req, res) => {
+  console.log("called deployMultiContract");
+  const allDocs = req.body.allDocs;
+  const retReceipts = [];
+  let currInterval;
+  let currNonce=0;
+  let deploying = false;
+  if (allDocs.length == 0) {
+    return res.json({ status: false, error: "bad request, empty array" });
+  }
+  allDocs.forEach(async currDoc => {
+    console.log("current document: ", currDoc);
+
+    const ipfsHash = currDoc.ipfsHash;
+    const instrumentType = currDoc.instrumentType;
+    const amount = currDoc.amount;
+    const currencySupported = currDoc.currencySupported;
+    const maturityDate = currDoc.maturityDate;
+    const docRef = currDoc.docRef;
+    const country = currDoc.country;
+    const privKey = currDoc.privKey;
+    const contractType = currDoc.contractType;
+    const passKey = currDoc.passKey;
+
+    if (
+      // _.isEmpty(ipfsHash) ||
+      _.isEmpty(instrumentType) ||
+      _.isEmpty(amount) ||
+      _.isEmpty(currencySupported) ||
+      _.isEmpty(maturityDate) ||
+      _.isEmpty(docRef) ||
+      _.isEmpty(country) ||
+      _.isEmpty(contractType) ||
+      _.isEmpty(passKey)
+    ) {
+      return res.status(400).json({ status: false, error: "bad request" });
+    }
+
+    const validContractTypes = Object.keys(contractTypes);
+    if (!validContractTypes.includes(contractType)) {
+      return res
+        .status(400)
+        .json({ status: false, error: "bad request, invalid contract type" });
+    }
+
+    let contractTemplate = fs.readFileSync(
+      path.join(__dirname, `../contracts/${contractTypes[contractType]}`)
+    );
+    contractTemplate = contractTemplate.toString();
+    if (contractType == "brokerInstrument") {
+      const name = currDoc.name;
+      if (_.isEmpty(name)) {
+        return res
+          .status(400)
+          .json({ status: false, error: "missing paramter: name" });
+      }
+      contractTemplate = contractTemplate.replace("_name_", name);
+    }
+    const cryptr = new Cryptr(passKey);
+    for (let i = 0; i < ipfsHash.length; i++) {
+      const encryptedString = cryptr.encrypt(ipfsHash[i]);
+      contractTemplate = contractTemplate.replace(
+        "_ipfsHash_",
+        encryptedString
+      );
+    }
+    contractTemplate = contractTemplate.replace(
+      "_instrumentType_",
+      instrumentType
+    );
+    contractTemplate = contractTemplate.replace("_amount_", amount);
+    contractTemplate = contractTemplate.replace(
+      "_currencySupported_",
+      currencySupported
+    );
+    contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
+    contractTemplate = contractTemplate.replace("_docRef_", docRef);
+    contractTemplate = contractTemplate.replace("_country_", country);
+    var solcInput = {
+      language: "Solidity",
+      sources: {
+        contract: {
+          content: contractTemplate
+        }
+      },
+      settings: {
+        optimizer: {
+          enabled: true
+        },
+        evmVersion: "byzantium",
+        outputSelection: {
+          "*": {
+            "": ["legacyAST", "ast"],
+            "*": [
+              "abi",
+              "evm.bytecode.object",
+              "evm.bytecode.sourceMap",
+              "evm.deployedBytecode.object",
+              "evm.deployedBytecode.sourceMap",
+              "evm.gasEstimates"
+            ]
+          }
+        }
+      }
+    };
+    logger.info("contract generated");
+    console.log(contractTemplate);
+    solcInput = JSON.stringify(solcInput);
+    var contractObject = solc.compile(solcInput);
+    contractObject = JSON.parse(contractObject);
+    const abi = contractObject.contracts.contract.DocContract.abi;
+    const byteCode =
+      contractObject.contracts.contract.DocContract.evm.bytecode.object;
+    const receipt = await deploySync(
+      JSON.stringify(abi),
+      byteCode.toString(),
+      privKey,
+      currNonce++
+    );
+    const account = xdc3.eth.accounts.privateKeyToAccount(privKey);
+    retReceipts.push({ receipt: receipt, deployerAddr: account.address });
+  });
+  currInterval = setInterval(() => {
+    if (retReceipts.length == allDocs.length) {
+      res.json({ status: true, receipts: retReceipts });
+      clearInterval(currInterval);
+    }
+  }, 1000);
+  // res.json({ status: true, receipts: retReceipts });
+};
+
 exports.deployMultiDocContract = async (req, res) => {
   try {
     logger.info("called deployContract");
@@ -373,7 +524,6 @@ exports.deployMultiDocContract = async (req, res) => {
     const privKey = req.body.privKey;
     const contractType = req.body.contractType;
     const passKey = req.body.passKey;
-
     if (
       // _.isEmpty(ipfsHash) ||
       _.isEmpty(instrumentType) ||
@@ -382,7 +532,7 @@ exports.deployMultiDocContract = async (req, res) => {
       _.isEmpty(maturityDate) ||
       _.isEmpty(docRef) ||
       _.isEmpty(country) ||
-      _.isEmpty(contractType) || 
+      _.isEmpty(contractType) ||
       _.isEmpty(passKey)
     ) {
       return res.status(400).json({ status: false, error: "bad request" });
@@ -409,9 +559,12 @@ exports.deployMultiDocContract = async (req, res) => {
       contractTemplate = contractTemplate.replace("_name_", name);
     }
     const cryptr = new Cryptr(passKey);
-    for (let i=0;i<ipfsHash.length;i++){
+    for (let i = 0; i < ipfsHash.length; i++) {
       const encryptedString = cryptr.encrypt(ipfsHash[i]);
-      contractTemplate = contractTemplate.replace("_ipfsHash_", encryptedString);
+      contractTemplate = contractTemplate.replace(
+        "_ipfsHash_",
+        encryptedString
+      );
     }
     contractTemplate = contractTemplate.replace(
       "_instrumentType_",
@@ -464,6 +617,7 @@ exports.deployMultiDocContract = async (req, res) => {
       JSON.stringify(abi),
       byteCode.toString(),
       privKey,
+      nonceAdder,
       (deployed, error, receipt, deployerAddr) => {
         if (deployed !== true) {
           return res.json({ error: error, status: false, receipt: null });
@@ -586,7 +740,6 @@ exports.makePayment = async (req, res) => {
   const purpose = req.body.purpose;
   const chainId = req.body.chainId;
   const value = req.body.value;
-
   if (
     _.isEmpty(privKey) ||
     _.isEmpty(abi) ||
@@ -639,7 +792,7 @@ exports.makePayment = async (req, res) => {
   }
 };
 
-async function deploy(abi, bin, privKey, callback) {
+async function deploy(abi, bin, privKey, nonceAdder, callback) {
   try {
     logger.info("called service.deploy");
     const abiJSON = JSON.parse(abi.trim());
@@ -654,7 +807,7 @@ async function deploy(abi, bin, privKey, callback) {
       data: deploy,
       gas: estimateGas,
       gasPrice: gasPrice,
-      nonce: nonce,
+      nonce: nonce + nonceAdder,
       chainId: networkId
     };
     let signedTransaction = await xdc3.eth.accounts.signTransaction(
@@ -692,6 +845,33 @@ async function deploy(abi, bin, privKey, callback) {
     console.log("error at deploy, ", e);
     callback(false, "exception", null);
   }
+}
+
+async function deploySync(abi, bin, privKey, nonceAdder) {
+  console.log("called deploySync");
+  const abiJSON = JSON.parse(abi.trim());
+  let contract = new xdc3.eth.Contract(abiJSON);
+  let deploy = contract.deploy({ data: "0x" + bin }).encodeABI();
+  const account = xdc3.eth.accounts.privateKeyToAccount(privKey);
+  const nonce = await xdc3.eth.getTransactionCount(account.address, "pending")+nonceAdder;
+  const gasPrice = await xdc3.eth.getGasPrice();
+  const estimateGas = await xdc3.eth.estimateGas({ data: deploy });
+  let rawTx = {
+    from: account.address,
+    data: deploy,
+    gas: estimateGas,
+    gasPrice: gasPrice,
+    nonce: nonce,
+    chainId: networkId
+  };
+  let signedTransaction = await xdc3.eth.accounts.signTransaction(
+    rawTx,
+    privKey
+  );
+  const receipt = await xdc3.eth.sendSignedTransaction(
+    signedTransaction.rawTransaction
+  );
+  return receipt;
 }
 
 async function signTx(encodedData, toAddr, privKey, chainId, value) {

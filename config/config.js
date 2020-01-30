@@ -3,9 +3,9 @@ const _ = require("lodash");
 const { logger } = require("../services/logger");
 
 let network = "apothem";
-const apothemRpc = "http://rpc.apothem.network";
+const apothemRpc = "https://rpc.apothem.network";
 const apothemId = "51";
-const mainnetRpc = "http://rpc.xinfin.network";
+const mainnetRpc = "https://rpc.xinfin.network";
 const mainnetId = "50";
 const networkLevels = ["apothem", "mainnet"];
 
