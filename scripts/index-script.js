@@ -5,7 +5,7 @@ const fs = require("fs");
 const solc = require("solc");
 
 const XDC3 = require("xdc3");
-let network = "http://rpc.apothem.network";
+let network = "https://rpc.apothem.network";
 
 // default is http://rpc.apothem.network
 if (!_.isEmpty(argv["httpProvider"])) {

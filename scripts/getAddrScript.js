@@ -2,7 +2,7 @@
 const argv = require("yargs").argv;
 const _ = require("lodash");
 const XDC3 = require("xdc3");
-let network = "http://rpc.apothem.network";
+let network = "https://rpc.apothem.network";
 
 const xdc3 = new XDC3(new XDC3.providers.HttpProvider(network));
 
