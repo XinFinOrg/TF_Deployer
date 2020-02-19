@@ -799,13 +799,13 @@ async function deploy(abi, bin, privKey, nonceAdder, callback) {
     let contract = new xdc3.eth.Contract(abiJSON);
     let deploy = contract.deploy({ data: "0x" + bin }).encodeABI();
     const account = xdc3.eth.accounts.privateKeyToAccount(privKey);
-    const nonce = await xdc3.eth.getTransactionCount(account.address);
+    const nonce = await xdc3.eth.getTransactionCount(account.address,"pending");
     const gasPrice = await xdc3.eth.getGasPrice();
-    const estimateGas = await xdc3.eth.estimateGas({ data: deploy });
+    const estimateGas = await xdc3.eth.estimateGas({ data: deploy, from: account.address });
     let rawTx = {
       from: account.address,
       data: deploy,
-      gas: estimateGas,
+      gasLimit: estimateGas,
       gasPrice: gasPrice,
       nonce: nonce + nonceAdder,
       chainId: networkId
