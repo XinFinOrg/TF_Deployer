@@ -27,7 +27,8 @@ const ipfsClient = new ipfs(ipfsConfig);
 // contract type values
 const contractTypes = {
   commonInstrument: "Common_Template_Beta.sol",
-  brokerInstrument: "Broker_Template_Beta.sol"
+  brokerInstrument: "Broker_Template_Beta.sol",
+  fundDesign: "Fund_design_Template_Beta.sol"
 };
 
 const networkRpc = config.networkRpc;
@@ -40,21 +41,16 @@ exports.generateContract = (req, res) => {
     logger.info("called generateContract");
     // generate contract code.
     const ipfsHash = req.body.ipfsHash;
-    const instrumentType = req.body.instrumentType;
     const amount = req.body.amount;
     const currencySupported = req.body.currencySupported;
-    const maturityDate = req.body.maturityDate;
     const docRef = req.body.docRef;
     const country = req.body.country;
     const contractType = req.body.contractType;
     const validContractTypes = Object.keys(contractTypes);
-
     if (
       _.isEmpty(ipfsHash) ||
-      _.isEmpty(instrumentType) ||
       _.isEmpty(amount) ||
       _.isEmpty(currencySupported) ||
-      _.isEmpty(maturityDate) ||
       _.isEmpty(docRef) ||
       _.isEmpty(country) ||
       _.isEmpty(contractType)
@@ -74,29 +70,60 @@ exports.generateContract = (req, res) => {
     contractTemplate = contractTemplate.toString();
     if (contractType == "brokerInstrument") {
       const name = req.body.name;
-      if (_.isEmpty(name)) {
-        return res
+      const instrumentType = req.body.instrumentType;
+      const maturityDate = req.body.maturityDate;
+      if (_.isEmpty(name)||
+          _.isEmpty(instrumentType) ||
+          _.isEmpty(maturityDate)){
+      return res
           .json(400)
-          .json({ status: false, error: "missing paramter: name" });
+          .json({ status: false, error: "missing paramter" });
       }
       contractTemplate = contractTemplate.replace("_name_", name);
+      contractTemplate = contractTemplate.replace("_instrumentType_",instrumentType);
+      contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
     }
+    else if(contractType =="commonInstrument"){
+        const instrumentType = req.body.instrumentType;
+        const maturityDate = req.body.maturityDate;
+        if (_.isEmpty(instrumentType) ||
+            _.isEmpty(maturityDate)){
+        return res
+            .json(400)
+            .json({ status: false, error: "missing paramter" });
+        }
+        contractTemplate = contractTemplate.replace("_instrumentType_",instrumentType);
+        contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
+      }
+      else if(contractType =="fundDesign"){
+        const name = req.body.name;
+        const manuMethod = req.body.manuMethod;
+        const materialType = req.body.materialType;
+        if (_.isEmpty(name)||
+            _.isEmpty(manuMethod)||
+            _.isEmpty(materialType)){
+        return res
+            .json(400)
+            .json({ status: false, error: "missing paramter" });
+        }
+        contractTemplate = contractTemplate.replace("_name_", name);
+        contractTemplate = contractTemplate.replace("_manuMethod_", manuMethod);
+        contractTemplate = contractTemplate.replace("_materialType_", materialType);
+      }
     const passKey = genRandomKey();
     const cryptr = new Cryptr(passKey);
     const encryptedString = cryptr.encrypt(ipfsHash);
     contractTemplate = contractTemplate.replace("_ipfsHash_", encryptedString);
-    contractTemplate = contractTemplate.replace(
-      "_instrumentType_",
-      instrumentType
-    );
+    
     contractTemplate = contractTemplate.replace("_amount_", amount);
     contractTemplate = contractTemplate.replace(
       "_currencySupported_",
       currencySupported
     );
-    contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
     contractTemplate = contractTemplate.replace("_docRef_", docRef);
     contractTemplate = contractTemplate.replace("_country_", country);
+    
+    
     return res.json({
       status: true,
       error: null,
@@ -271,10 +298,8 @@ exports.deployContract = async (req, res) => {
 
     if (
       _.isEmpty(ipfsHash) ||
-      _.isEmpty(instrumentType) ||
       _.isEmpty(amount) ||
       _.isEmpty(currencySupported) ||
-      _.isEmpty(maturityDate) ||
       _.isEmpty(docRef) ||
       _.isEmpty(country) ||
       _.isEmpty(contractType) ||
@@ -296,26 +321,55 @@ exports.deployContract = async (req, res) => {
     contractTemplate = contractTemplate.toString();
     if (contractType == "brokerInstrument") {
       const name = req.body.name;
-      if (_.isEmpty(name)) {
-        return res
-          .status(400)
-          .json({ status: false, error: "missing paramter: name" });
+      const instrumentType = req.body.instrumentType;
+      const maturityDate = req.body.maturityDate;
+      if (_.isEmpty(name)||
+          _.isEmpty(instrumentType) ||
+          _.isEmpty(maturityDate)){
+      return res
+          .json(400)
+          .json({ status: false, error: "missing paramter" });
       }
       contractTemplate = contractTemplate.replace("_name_", name);
+      contractTemplate = contractTemplate.replace("_instrumentType_",instrumentType);
+      contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
+    }
+    else if(contractType =="commonInstrument"){
+      const instrumentType = req.body.instrumentType;
+      const maturityDate = req.body.maturityDate;
+      if (_.isEmpty(instrumentType) ||
+          _.isEmpty(maturityDate)){
+      return res
+          .json(400)
+          .json({ status: false, error: "missing paramter" });
+      }
+      contractTemplate = contractTemplate.replace("_instrumentType_",instrumentType);
+      contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
+    }
+    else if(contractType =="fundDesign"){
+      const name = req.body.name;
+      const manuMethod = req.body.manuMethod;
+      const materialType = req.body.materialType;
+      if (_.isEmpty(name)||
+          _.isEmpty(manuMethod)||
+          _.isEmpty(materialType)){
+      return res
+          .json(400)
+          .json({ status: false, error: "missing paramter" });
+      }
+      contractTemplate = contractTemplate.replace("_name_", name);
+      contractTemplate = contractTemplate.replace("_manuMethod_", manuMethod);
+      contractTemplate = contractTemplate.replace("_materialType_", materialType);
     }
     const cryptr = new Cryptr(passKey);
     const encryptedString = cryptr.encrypt(ipfsHash);
     contractTemplate = contractTemplate.replace("_ipfsHash_", encryptedString);
-    contractTemplate = contractTemplate.replace(
-      "_instrumentType_",
-      instrumentType
-    );
+    
     contractTemplate = contractTemplate.replace("_amount_", amount);
     contractTemplate = contractTemplate.replace(
       "_currencySupported_",
       currencySupported
     );
-    contractTemplate = contractTemplate.replace("_maturityDate_", maturityDate);
     contractTemplate = contractTemplate.replace("_docRef_", docRef);
     contractTemplate = contractTemplate.replace("_country_", country);
     var solcInput = {
@@ -802,6 +856,7 @@ async function deploy(abi, bin, privKey, nonceAdder, callback) {
     const nonce = await xdc3.eth.getTransactionCount(account.address,"pending");
     const gasPrice = await xdc3.eth.getGasPrice();
     const estimateGas = await xdc3.eth.estimateGas({ data: deploy, from: account.address });
+    console.log("###",nonce,gasPrice,estimateGas);
     let rawTx = {
       from: account.address,
       data: deploy,
