@@ -8,7 +8,7 @@
     "dev": "nodemon index.js",
     "start-mainnet":"nodemon index.js --network=mainnet",
     "start-ipfs-local":"nodemon index.js --ipfsNetwork=local",
-    "start": "pm2 start index.js --name MainNet_TF_Deployer  --node-args='--network=mainnet'",
+    "start": "pm2 start index.js --name MainNet_TF_Deployer",
     "start-apothem": "pm2 start index.js --name Apothem_TF_Deployer"
   },
   "author": "",
