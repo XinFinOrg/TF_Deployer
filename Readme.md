@@ -1,4 +1,4 @@
-## Contarct Deployer for Instrument Types in Trade Financing
+## Contract Deployer for Instrument Types in Trade Financing
 
 ### Setup
 
